@@ -85,7 +85,7 @@ a.5<-aggregate(data=a.4,steps~interval+weekday,FUN="mean",na.rm=TRUE)
 a.6<-merge(x=a.4,y=a.5,by.x=c("interval","weekday"),by.y=c("interval","weekday"),all.x=TRUE)
 #Conditionally replacing the steps.x column NA value with the values from steps.y column value 
 a.6$Steps.Updated<-0
-for (i in 1:dim(Q6.6)[[1]]){
+for (i in 1:dim(a.6)[[1]]){
 if(is.na(a.6[i,3])){a.6[i,6]=a.6[i,5]}
 else {a.6[i,6]=a.6[i,3]}
 }
