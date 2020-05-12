@@ -1,25 +1,125 @@
 ---
 title: "Reproducible Research: Peer Assessment 1"
-output: 
+output: PA_template.Rmd
   html_document:
     keep_md: true
 ---
 
 
 ## Loading and preprocessing the data
+```{r}
+library(ggplot2)
+activity <- data.table::fread(input = "/Users/eshanchatty/Downloads/activity.csv")
+dim(activity)
+names(activity)
+head(activity)
+str(activity)
 
+##To check the number of NA or missing values in the steps Variable.
+sum(is.na(activity$steps))
+## transforming the date column into date format using lubridate
+library(lubridate)
+activity$date<-ymd(activity$date)
+length(unique(activity$date))
+```
+## What is mean and median total number of steps taken per day?
+```{r}
+Total_Steps <- activity[, c(lapply(.SD, sum, na.rm = FALSE)), .SDcols = c("steps"), by = .(date)] 
+head(Total_Steps)
+mean(Total_Steps$steps,na.rm = TRUE)
+median(Total_Steps$steps,na.rm = TRUE)
+```
+## Histogram of the total number of steps taken each day?
+```{r}
+ggplot(Total_Steps, aes(x = steps)) +
+    geom_histogram(fill = "blue", binwidth = 1000) +
+    labs(title = "Daily Steps", x = "Steps", y = "Frequency")
+``` 
+## Time series plot of the average number of steps taken?
+```{r}
+Avgpattern <- activity[, c(lapply(.SD, mean, na.rm = TRUE)), .SDcols = c("steps"), by = .(interval)] 
 
-
-## What is mean total number of steps taken per day?
-
-
-
-## What is the average daily activity pattern?
-
-
-
+ggplot(Avgpattern, aes(x = interval , y = steps)) + geom_line(color="blue", size=1) + labs(title = "Avg. Daily Steps", x = "Interval", y = "Avg. Steps per day")
+```
+## The 5-minute interval that, on average, contains the maximum number of steps?
+```{r}
+activity$interval<-factor(activity$interval)
+Q5<-aggregate(data=activity,steps~date+interval,FUN="mean")
+Q5<-aggregate(data=Q5,steps~interval,FUN="max")
+```
 ## Imputing missing values
+```{r}
+a<-activity
+a$Missing<-is.na(a$steps)
+a<-aggregate(data=a,Missing~date+interval,FUN="sum")
+a.1<-data.frame(tapply(a$Missing,a$date,sum))
+a.1$date<-rownames(a.1)
+rownames(a.1)<-NULL
+names(a.1)<-c("Missing","date")
+a.1$date<-as.Date(a.1$date,format="%Y-%m-%d")
+a.2<-data.frame(tapply(a$Missing,a$interval,sum))
+a.2$date<-rownames(a.2)
+rownames(a.2)<-NULL
+names(a.2)<-c("Missing","Interval")
+par(mfrow=c(1,2))
+plot(y=a.1$Missing,x=a.1$date,main="Missing Value Distribution by Date")
+plot(y=a.2$Missing,x=a.2$Interval,main="Missing Value Distribution by Interval")
+table(activity$date)
+```
+
+By this point, from the plot, that the missing values have a very disctinct pattern. For every interval, there are consistantly 8 missing values. For the date, there are consistantly 288 missing values. And in total, there are 8 dates that have missing value. We don't exactly know the cause for these missing values but there's a pattern. For that matter, we can see that the mean value imputation is appropriate.
+
+We can see that every date has 288 data points. It means that the 8 dates have no data points at all what so ever. We can refine the analysis by looking at these missing values depending on their Weekday and interval parameters to matach with the average 
+
+```{r, echo = TRUE}
+#Dates that have missing values 
+library(lubridate)
+a.3<-as.data.frame(a.1) %>% select(date,Missing) %>% arrange(desc(Missing))
+a.3<-a.3[which(a.3$Missing!=0),]
+a.3$Weekday<-wday(a.3$date,label=TRUE)
+a.4<-activity
+a.4$weekday<-wday(a.4$date,label=TRUE)
+#Finding the mean of steps every monday, and every interval
+a.5<-aggregate(data=a.4,steps~interval+weekday,FUN="mean",na.rm=TRUE)
+#Merge the pre-imputation table a.4 table with the average table a.5
+a.6<-merge(x=a.4,y=a.5,by.x=c("interval","weekday"),by.y=c("interval","weekday"),all.x=TRUE)
+#Conditionally replacing the steps.x column NA value with the values from steps.y column value 
+a.6$Steps.Updated<-0
+for (i in 1:dim(Q6.6)[[1]]){
+if(is.na(a.6[i,3])){a.6[i,6]=a.6[i,5]}
+else {a.6[i,6]=a.6[i,3]}
+}
+#Now simplify the imputed analytical data frame
+a.6 <-a.6  %>% select(date,weekday,interval,Steps.Updated)
+names(a.6)[[4]]<-"Steps"
+```
+
+
+## Step 7
+Histogram of the total number of steps taken each day after missing values are imputed
+
+```{r, echo = TRUE}
+png("plot7.png")
+qplot(a.6$Steps,geom="histogram",main="Total steps taken histogram post imputation",xlab="Steps",ylab="Count")
+dev.off()
+qplot(a.6$Steps,geom="histogram",main="Total steps taken histogram post imputation",xlab="Steps",ylab="Count")
+```
 
 
 
-## Are there differences in activity patterns between weekdays and weekends?
+
+## Step 8
+Panel plot comparing the average number of steps taken per 5-minute interval across weekdays and weekends
+
+```{r}
+activity[, date := as.POSIXct(date, format = "%Y-%m-%d")]
+activity[, `Day of Week`:= weekdays(x = date)]
+activity[grepl(pattern = "Monday|Tuesday|Wednesday|Thursday|Friday", x = `Day of Week`), "weekday or weekend"] <- "weekday"
+activity[grepl(pattern = "Saturday|Sunday", x = `Day of Week`), "weekday or weekend"] <- "weekend"
+activity[,`weekday or weekend` := as.factor(`weekday or weekend`)]
+activity[is.na(steps), "steps"] <- activity[, c(lapply(.SD, median, na.rm = TRUE)), .SDcols = c("steps")]
+Interval <- activity[, c(lapply(.SD, mean, na.rm = TRUE)), .SDcols = c("steps"), by = .(interval, `weekday or weekend`)] 
+
+ggplot(Interval , aes(x = interval , y = steps, color=`weekday or weekend`)) + geom_line() + labs(title = "Avg. Daily Steps by Weektype", x = "Interval", y = "No. of Steps") + facet_wrap(~`weekday or weekend` , ncol = 1, nrow=2)
+```
+Hence Clearly we can see that on weekends the number of steps are clearly way more higher and the interval too is high.
